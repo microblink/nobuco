@@ -58,7 +58,7 @@ class TierStatus:
 
 
 class PytorchNode:
-    def __init__(self, wrapped_op: WrappedOp, module_name, parent_list, instance, input_args, input_kwargs, outputs, is_inplace, traceback_summary):
+    def __init__(self, wrapped_op: WrappedOp, module_name, parent_list, instance, input_args, input_kwargs, outputs, is_inplace, traceback_summary, namespace):
         self.wrapped_op = wrapped_op
         self.module_name = module_name
         self.parent_list = parent_list
@@ -68,6 +68,7 @@ class PytorchNode:
         self.outputs = outputs
         self.is_inplace = is_inplace
         self.traceback_summary = traceback_summary
+        self.namespace = namespace
 
     def make_inputs_template(self):
         args_template, kwargs_template = make_template_recursively((self.input_args, self.input_kwargs))

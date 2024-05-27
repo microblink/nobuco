@@ -236,7 +236,7 @@ class Tracer:
         return all(torch.equal(t1.cpu(), t2.cpu()) for t1, t2 in zip(tensors1, tensors2))
 
     @staticmethod
-    def module_forward_tracing_decorator(forward_func):
+    def module_forward_tracing_decorator(forward_func, namespace=None):
 
         def forward(self, *args, **kwargs):
             if Tracer.is_tracing_enabled():
@@ -267,7 +267,7 @@ class Tracer:
 
                         summary: traceback.FrameSummary = find_call_summary(traceback.extract_stack())
                         args_clone, kwargs_clone, outputs_clone = unwrap_torch_tensors_recursively((args_clone, kwargs_clone, outputs_clone))
-                        node = PytorchNode(wrapped_op, self.__module__, Tracer._parent_list.copy(), self, args_clone, kwargs_clone, outputs_clone, is_inplace, summary)
+                        node = PytorchNode(wrapped_op, self.__module__, Tracer._parent_list.copy(), self, args_clone, kwargs_clone, outputs_clone, is_inplace, summary, namespace)
                         Tracer.append_node(node)
                     return outputs
             else:
@@ -354,7 +354,7 @@ class Tracer:
 
                             summary: traceback.FrameSummary = find_call_summary(traceback.extract_stack())
                             args_clone, kwargs_clone, outputs_clone = unwrap_torch_tensors_recursively((args_clone, kwargs_clone, outputs_clone))
-                            node = PytorchNode(wrapped_op, module_name, Tracer._parent_list.copy(), None, args_clone, kwargs_clone, outputs_clone, is_inplace, summary)
+                            node = PytorchNode(wrapped_op, module_name, Tracer._parent_list.copy(), None, args_clone, kwargs_clone, outputs_clone, is_inplace, summary, None)
                             Tracer.append_node(node)
             else:
                 outputs = orig_method(*args, **kwargs)
@@ -412,16 +412,18 @@ class Tracer:
 
     @staticmethod
     def decorate_all():
-        Tracer.decorate_module()
-        Tracer.decorate_ops()
+        # TODO (mmijolovic): eager tracing breaks the ability to infer Pytorch module names
+        # Tracer.decorate_module()
+        # Tracer.decorate_ops()
+        pass
 
     @staticmethod
-    def apply_module_tracing_recursively(module):
-        for child in module.children():
-            Tracer.apply_module_tracing_recursively(child)
+    def apply_module_tracing_recursively(module, module_name=None):
+        for child_name, child in module.named_children():
+            Tracer.apply_module_tracing_recursively(child, child_name)
 
         if not Tracer.is_decorated(module.forward):
-            module.forward = types.MethodType(Tracer.module_forward_tracing_decorator(module.forward), module)
+            module.forward = types.MethodType(Tracer.module_forward_tracing_decorator(module.forward, module_name), module)
         return module
 
     @staticmethod

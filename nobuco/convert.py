@@ -33,6 +33,9 @@ from nobuco.node_converters import *
 # Trace pytorch ops right away
 Tracer.decorate_all()
 
+# https://github.com/keras-team/tf-keras/issues/269
+tf.keras.__internal__.apply_name_scope_on_model_declaration(True)
+
 
 def has_converter(node: PytorchNode, converter_dict: Dict[object, Pytorch2KerasNodeConverter]) -> bool:
     return node.get_type() in converter_dict.keys()
@@ -112,7 +115,9 @@ def convert_container(
 
     outputs_template = node.make_outputs_template()
 
-    node_keras = TransientContainer.create(input_names, output_names, outputs_template, disconnected_tensors_keras, children_converted_nodes, constants_to_variables=constants_to_variables)
+    node_keras = TransientContainer.create(
+        input_names, output_names, outputs_template, disconnected_tensors_keras, children_converted_nodes, constants_to_variables=constants_to_variables, namespace=node.namespace
+    )
     return node_keras
 
 

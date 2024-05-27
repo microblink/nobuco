@@ -1,27 +1,32 @@
+from typing import Optional
+
 from nobuco.commons import TF_TENSOR_CLASSES, ConnectivityStatus
 from nobuco.layers.weight import WeightLayer
 from nobuco.converters.channel_ordering import TensorPlaceholder, template_insert_recursively
 from nobuco.util import collect_recursively
 
+import tensorflow as tf
+
 
 class TransientContainer:
-    def __init__(self, op_descr_list, input_names, output_names, outputs_template, constants_dict=None, disconnected_tensors_descr_list=None):
+    def __init__(self, op_descr_list, input_names, output_names, outputs_template, namespace, constants_dict=None, disconnected_tensors_descr_list=None):
         self.op_descr_list = op_descr_list
         self.input_names = input_names
         self.output_names = output_names
         self.outputs_template = outputs_template
+        self.namespace = namespace
         self.constants_dict = {} if constants_dict is None else constants_dict
         self.disconnected_tensors_descr_list = [] if disconnected_tensors_descr_list is None else disconnected_tensors_descr_list
 
     @classmethod
-    def create(cls, input_names, output_names, outputs_template, disconnected_tensors_keras, children_converted_nodes, constants_to_variables: bool):
+    def create(cls, input_names, output_names, outputs_template, disconnected_tensors_keras, children_converted_nodes, constants_to_variables: bool, namespace: Optional[str]):
         children_descr_list = [(node.input_names, node.output_names, node.keras_op, node.pytorch_node.make_inputs_template()) for node in children_converted_nodes]
         if constants_to_variables:
             const_input_name = input_names[0]
             disconnected_tensors_descr_list = [([const_input_name], [output_name], WeightLayer.create(t, trainable=True), ([TensorPlaceholder(0)], {})) for output_name, t in disconnected_tensors_keras.items()]
-            return TransientContainer(children_descr_list, input_names, output_names, outputs_template, constants_dict={}, disconnected_tensors_descr_list=disconnected_tensors_descr_list)
+            return TransientContainer(children_descr_list, input_names, output_names, outputs_template, namespace, constants_dict={}, disconnected_tensors_descr_list=disconnected_tensors_descr_list)
         else:
-            return TransientContainer(children_descr_list, input_names, output_names, outputs_template, constants_dict=disconnected_tensors_keras, disconnected_tensors_descr_list=[])
+            return TransientContainer(children_descr_list, input_names, output_names, outputs_template, namespace, constants_dict=disconnected_tensors_keras, disconnected_tensors_descr_list=[])
 
     def _traverse_graph(self, start_names, op_descr_list, reverse_graph):
         traversed_nodes = set(start_names)
@@ -66,7 +71,8 @@ class TransientContainer:
         for input_names, output_names, op, (args_template, kwargs_template) in (self.disconnected_tensors_descr_list + self.op_descr_list):
             input_tensors = [node_dict[name] for name in input_names]
             args, kwargs = template_insert_recursively((args_template, kwargs_template), input_tensors)
-            outputs = op(*args, **kwargs)
+            with tf.name_scope(self.namespace or ""):
+                outputs = op(*args, **kwargs)
             output_tensors = collect_recursively(outputs, TF_TENSOR_CLASSES)
             assert len(output_names) == len(output_tensors)
 

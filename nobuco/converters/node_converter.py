@@ -7,6 +7,9 @@ from nobuco.layers.channel_order import ChangeOrderingLayer
 from nobuco.trace.trace import Tracer
 
 
+import tensorflow as tf
+
+
 class Pytorch2KerasNodeConverter:
     def __init__(self, convert_func, validate_func, channel_ordering_strategy, autocast, reusable):
         self.convert_func = convert_func
@@ -16,7 +19,9 @@ class Pytorch2KerasNodeConverter:
         self.reusable = reusable
 
     def convert(self, *args, _pytorch_node: PytorchNode = None, **kwargs):
-        converter_result_func = self.convert_func(*args, **kwargs)
+        namespace = _pytorch_node.namespace if _pytorch_node else ""
+        with tf.name_scope(namespace or ""):
+            converter_result_func = self.convert_func(*args, **kwargs)
         if _pytorch_node is not None:
             output_types = _pytorch_node.output_types
         else:
